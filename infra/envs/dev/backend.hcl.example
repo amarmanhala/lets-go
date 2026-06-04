@@ -1,0 +1,4 @@
+resource_group_name  = "rg-lets-go-tfstate"
+storage_account_name = "letsgotfstate12345"
+container_name       = "tfstate"
+key                  = "lets-go-dev.tfstate"

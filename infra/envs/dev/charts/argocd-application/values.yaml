@@ -1,0 +1,8 @@
+application:
+  name: lets-go
+  namespace: argocd
+  project: default
+  repositoryUrl: https://github.com/amarmanhala/lets-go.git
+  targetRevision: main
+  path: deploy/helm/lets-go
+  targetNamespace: lets-go

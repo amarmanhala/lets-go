@@ -1,0 +1,5 @@
+location            = "canadacentral"
+environment         = "dev"
+resource_group_name = "rg-lets-go-dev"
+acr_name            = "letsgodevacr12345"
+aks_name            = "aks-lets-go-dev"
