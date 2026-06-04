@@ -65,7 +65,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Azure login
+      - name: Validate Azure configuration
+        run: |
+          test -n "${{ secrets.AZURE_CLIENT_ID }}" || (echo "Missing secret AZURE_CLIENT_ID" && exit 1)
+          test -n "${{ secrets.AZURE_TENANT_ID }}" || (echo "Missing secret AZURE_TENANT_ID" && exit 1)
+          test -n "${{ secrets.AZURE_SUBSCRIPTION_ID }}" || (echo "Missing secret AZURE_SUBSCRIPTION_ID" && exit 1)
+          test -z "${{ secrets.AZURE_CLIENT_SECRET }}" || (echo "Do not set AZURE_CLIENT_SECRET. This workflow uses Azure OIDC." && exit 1)
+          test -n "${{ vars.AZURE_ACR_NAME }}" || (echo "Missing repository variable AZURE_ACR_NAME. Use only the registry name, not .azurecr.io." && exit 1)
+          test -n "${{ vars.AZURE_TFSTATE_RESOURCE_GROUP }}" || (echo "Missing repository variable AZURE_TFSTATE_RESOURCE_GROUP" && exit 1)
+          test -n "${{ vars.AZURE_TFSTATE_STORAGE_ACCOUNT }}" || (echo "Missing repository variable AZURE_TFSTATE_STORAGE_ACCOUNT" && exit 1)
+          test -n "${{ vars.AZURE_TFSTATE_CONTAINER }}" || (echo "Missing repository variable AZURE_TFSTATE_CONTAINER" && exit 1)
+
+      - name: Azure OIDC login
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -114,12 +125,12 @@ jobs:
         with:
           context: .
           load: true
-          tags: ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          tags: ${{ env.IMAGE_NAME }}:scan
 
       - name: Scan image vulnerabilities
         uses: aquasecurity/trivy-action@0.35.0
         with:
-          image-ref: ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          image-ref: ${{ env.IMAGE_NAME }}:scan
           format: table
           severity: CRITICAL,HIGH
           vuln-type: os,library
@@ -141,7 +152,15 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Azure login
+      - name: Validate Azure configuration
+        run: |
+          test -n "${{ secrets.AZURE_CLIENT_ID }}" || (echo "Missing secret AZURE_CLIENT_ID" && exit 1)
+          test -n "${{ secrets.AZURE_TENANT_ID }}" || (echo "Missing secret AZURE_TENANT_ID" && exit 1)
+          test -n "${{ secrets.AZURE_SUBSCRIPTION_ID }}" || (echo "Missing secret AZURE_SUBSCRIPTION_ID" && exit 1)
+          test -z "${{ secrets.AZURE_CLIENT_SECRET }}" || (echo "Do not set AZURE_CLIENT_SECRET. This workflow uses Azure OIDC." && exit 1)
+          test -n "${{ vars.AZURE_ACR_NAME }}" || (echo "Missing repository variable AZURE_ACR_NAME. Use only the registry name, not .azurecr.io." && exit 1)
+
+      - name: Azure OIDC login
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}

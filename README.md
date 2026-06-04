@@ -80,22 +80,104 @@ Update:
 - `terraform.tfvars`
 
 The `acr_name` value must be globally unique and must match the GitHub variable `AZURE_ACR_NAME`.
+Use only the registry name, not the full login server.
+
+```text
+Correct: letsgodevacr12345
+Wrong:   letsgodevacr12345.azurecr.io
+```
 
 ### 2. Create Azure OIDC Credentials for GitHub Actions
 
-Create an Azure app registration/service principal with federated credentials for:
+GitHub Actions authenticates to Azure with OIDC. Do not create or store an `AZURE_CLIENT_SECRET`.
+
+Login to Azure and set your subscription:
+
+```sh
+az login
+az account set --subscription "<subscription-id>"
+```
+
+Create a Microsoft Entra app registration and service principal:
+
+```sh
+APP_NAME="lets-go-github-oidc"
+APP_ID=$(az ad app create --display-name "$APP_NAME" --query appId -o tsv)
+az ad sp create --id "$APP_ID"
+```
+
+Create federated credentials for pushes to `main` and pull requests:
+
+```sh
+az ad app federated-credential create \
+  --id "$APP_ID" \
+  --parameters '{
+    "name": "lets-go-main",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:amarmanhala/lets-go:ref:refs/heads/main",
+    "audiences": ["api://AzureADTokenExchange"]
+  }'
+
+az ad app federated-credential create \
+  --id "$APP_ID" \
+  --parameters '{
+    "name": "lets-go-pull-request",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:amarmanhala/lets-go:pull_request",
+    "audiences": ["api://AzureADTokenExchange"]
+  }'
+```
+
+These subject values must match the federated credentials exactly:
 
 ```text
 repo:amarmanhala/lets-go:ref:refs/heads/main
 repo:amarmanhala/lets-go:pull_request
 ```
 
-Add these GitHub Actions secrets:
+Grant the service principal access to the Terraform state resource group and the dev resource group:
+
+```sh
+SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+SP_OBJECT_ID=$(az ad sp show --id "$APP_ID" --query id -o tsv)
+
+az role assignment create \
+  --assignee-object-id "$SP_OBJECT_ID" \
+  --assignee-principal-type ServicePrincipal \
+  --role Contributor \
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/rg-lets-go-tfstate"
+
+az role assignment create \
+  --assignee-object-id "$SP_OBJECT_ID" \
+  --assignee-principal-type ServicePrincipal \
+  --role Contributor \
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/rg-lets-go-dev"
+```
+
+Terraform creates an `AcrPull` role assignment for AKS. If Terraform fails on role assignment permissions, grant this additional role at the dev resource group scope:
+
+```sh
+az role assignment create \
+  --assignee-object-id "$SP_OBJECT_ID" \
+  --assignee-principal-type ServicePrincipal \
+  --role "User Access Administrator" \
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/rg-lets-go-dev"
+```
+
+Add these GitHub Actions secrets. These are IDs only; there is no client secret:
 
 ```text
 AZURE_CLIENT_ID
 AZURE_TENANT_ID
 AZURE_SUBSCRIPTION_ID
+```
+
+Use these values:
+
+```sh
+echo "AZURE_CLIENT_ID=$APP_ID"
+az account show --query tenantId -o tsv
+az account show --query id -o tsv
 ```
 
 Add these GitHub Actions variables:
